@@ -1,0 +1,67 @@
+# YAML init file for Grip GraphQL framework
+#
+
+
+globals:
+    project_home: $GRIP_HOME
+    service_module: grip_services
+    resolver_module: resolvers
+    handler_module: handlers
+    debug_mode: True
+    logfile: grip.log
+    
+
+service_objects:
+    test:
+        class: TestService
+        init_params:
+
+
+types:
+    Greeting:
+        id: Int!
+        word: String!
+        person: String!
+
+    Building:
+        id: ID!
+        buildYear: String!
+        residents: [Resident]
+
+    Resident:
+        id: ID!
+        name: String!
+        age: Int!
+        family: [Resident]
+        building: Building
+
+mutation_defs:
+
+
+query_defs:
+    hello:
+        inputs:
+        output: String!
+
+    helloperson: 
+        output: Greeting!
+
+    sum:
+        inputs:
+            - a: Int!
+            - b: Int!
+
+        output: Int!
+
+entry_point:
+    graphql_get:
+        route: /graphql
+        method: GET
+        handler: handle_get
+    
+
+
+
+
+
+

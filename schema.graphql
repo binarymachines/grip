@@ -1,0 +1,28 @@
+type Query {
+    hello: String!
+    helloperson: Greeting
+    sum(a: Int!, b: Int!): Int! 
+}
+
+
+type Greeting {
+    id: Int!
+    word: String!
+    person: String!
+}
+
+type Building {
+    id: ID!
+    buildYear: String!
+    residents: [Resident]
+}
+
+type Resident {
+    id: ID!
+    name: String!
+    age: Int!
+    family: [Resident]
+    building: Building
+}
+
+
