@@ -8,6 +8,7 @@ globals:
     resolver_module: resolvers
     handler_module: handlers
     debug_mode: True
+    port: 5050
     logfile: grip.log
     
 

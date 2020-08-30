@@ -1,34 +1,19 @@
 #!/usr/bin/env python
 
 
-GQL_QUERY_TEMPLATE = """
-type Query {
-    {% for qspec in query_specs -%}
-    {% if qspec.has_args -%}
-    {{ qspec.name }}({{ qspec.arg_string }}): {{ qspec.return_type }} 
-    {% else -%}
-    {{ qspec.name }}: {{ qspec.return_type }}
-    {% endif -%}
-    {%- endfor -%}
-}
-"""
-
-
-MAIN_APP_TEMPLATE = """
-#!/usr/bin/env python
-
-
 from ariadne import graphql_sync, make_executable_schema, load_schema_from_path, ObjectType, QueryType
 from ariadne.constants import PLAYGROUND_HTML
 from flask import Flask, request, jsonify
+import resolvers as r
 
-sys.path.append('{{ project.home_dir }}')
+#
+'''
+sys.path.append('{{ PROJECT_HOME }}')
 
-import {{ project.resolver_module }} as r
-import {{ project.handler_module }} 
+import {{resolver_module}}
+import {{handler_module}} 
 
 flask_runtime = Flask(__name__)
-
 
 if __name__ == '__main__':
     print('starting GRIP graphql service in standalone (debug) mode...')
@@ -38,20 +23,21 @@ else:
     print('starting GRIP graphql service in wsgi mode...')
     flask_runtime.config['startup_mode'] = 'server'
 
-
 app = grip.setup(flask_runtime)
 service_registry = app.config.get('services')
-forwarder = core.Forwarder(app.config.get('services'))
 
+delegator = core.Delegator(app.config.get('services'))
+'''
 
-typedefs = load_schema_from_path('{{ project.schema_file }}')
+app = Flask(__name__)
+
+typedefs = load_schema_from_path('schema.graphql')
 bindables = []
 bindables.append(r.query)
+bindables.append(ObjectType('Building'))
+bindables.append(ObjectType('Resident'))
 
-{% for typename in project.object_types %}
-bindables.append(ObjectType('{{ typename }}'))
-{% endfor %}
-
+#query.set_field('building_with_id', r.building_with_id)
 schema = make_executable_schema(typedefs, bindables)
 
 
@@ -74,5 +60,3 @@ def graphql_server():
 
 if __name__ == '__main__':
     app.run(debug=True)
-
-"""
