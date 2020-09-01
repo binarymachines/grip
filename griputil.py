@@ -7,10 +7,12 @@ import yaml
 import jinja2
 from snap import common
 
-from templates import GQL_QUERY_TEMPLATE
+from templates import GQL_QUERY_TEMPLATE, GQL_TYPE_TEMPLATE
 
 
 GQLQueryArg = namedtuple('GQLQueryArg', 'name datatype')
+GQLTypespecField = namedtuple('GQLTypespecField', 'name datatype')
+
 
 class GQLQuerySpec(object):
     def __init__(self, name: str, return_type: str, *gql_query_args: GQLQueryArg):
@@ -36,8 +38,10 @@ class GQLQuerySpec(object):
         #return(f'({args})')
 
 
-def load_gql_type_configs(yaml_config):
-    pass
+class GQLTypespec(object):
+    def __init__(self, name: str, fields: dict):
+        self.name = name
+        self.fields = [GQLTypespecField(name=fname, datatype=ftype) for fname, ftype in fields.items()]
 
 
 def input_param_to_args(param):
@@ -67,13 +71,37 @@ def load_query_specs(yaml_config: dict) -> list:
     return query_specs
 
 
+def load_type_specs(yaml_config: dict) -> list:
+    type_specs = []
+    type_segment = yaml_config.get('type_defs')
+
+    for name, raw_field_dict in type_segment.items():
+
+        field_dict = {}
+        for field_name, field_value in raw_field_dict.items():
+            if field_value.__class__ == list:
+                field_dict[field_name] = f'[{field_value[0]}]'
+            else:
+                field_dict[field_name] = field_value
+                
+        type_specs.append(GQLTypespec(name, field_dict))
+
+    return type_specs
+
+
 def create_gql_schema(yaml_config: dict) -> str:
     
-    type_config = load_gql_type_configs(yaml_config)
-    query_spec = load_query_specs(yaml_config)
-
     j2env = jinja2.Environment()
     template_mgr = common.JinjaTemplateManager(j2env)
-    template = j2env.from_string(GQL_QUERY_TEMPLATE)
 
-    return template.render(query_specs=load_query_specs(yaml_config))
+    query_template = j2env.from_string(GQL_QUERY_TEMPLATE)
+    query_schema = query_template.render(query_specs=load_query_specs(yaml_config))
+
+    types_template = j2env.from_string(GQL_TYPE_TEMPLATE)
+    types_schema = types_template.render(type_specs=load_type_specs(yaml_config))
+
+    return ''.join([query_schema, types_schema])
+
+
+def generate_resolver_src(yaml_config: dict) -> str:
+    pass

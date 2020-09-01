@@ -14,6 +14,19 @@ type Query {
 """
 
 
+GQL_TYPE_TEMPLATE = """
+{% for typespec in type_specs %}
+
+type {{ typespec.name }} {
+    {% for field in typespec.fields -%}
+    {{ field.name }}: {{ field.datatype }}
+    {% endfor -%}
+}
+{% endfor %}
+
+"""
+
+
 MAIN_APP_TEMPLATE = """
 #!/usr/bin/env python
 
