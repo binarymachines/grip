@@ -1,12 +1,11 @@
 # YAML init file for Grip GraphQL framework
 #
 
-
 globals:
     project_home: $GRIP_HOME
-    service_module: grip_services
-    resolver_module: resolvers
-    handler_module: handlers
+    service_module: test_services
+    resolver_module: test_resolvers
+    handler_module: test_handlers
     debug_mode: True
     port: 5050
     logfile: grip.log
@@ -18,7 +17,7 @@ service_objects:
         init_params:
 
 
-types:
+type_defs:
     Greeting:
         id: Int!
         word: String!

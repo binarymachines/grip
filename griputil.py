@@ -7,8 +7,11 @@ import yaml
 import jinja2
 from snap import common
 
-from templates import GQL_QUERY_TEMPLATE, GQL_TYPE_TEMPLATE
-
+from templates import GQL_QUERY_TEMPLATE
+from templates import GQL_TYPE_TEMPLATE
+from templates import MAIN_APP_TEMPLATE
+from templates import RESOLVER_MODULE_TEMPLATE
+from templates import HANDLER_MODULE_TEMPLATE
 
 GQLQueryArg = namedtuple('GQLQueryArg', 'name datatype')
 GQLTypespecField = namedtuple('GQLTypespecField', 'name datatype')
@@ -44,6 +47,80 @@ class GQLTypespec(object):
         self.fields = [GQLTypespecField(name=fname, datatype=ftype) for fname, ftype in fields.items()]
 
 
+class GProjectConfig(object):
+
+    def __init__(self, **kwargs):
+        self.home_dir = ''
+        self.schema_file = ''
+        self.resolver_module = ''
+        self.handler_module = ''
+        self.object_types = []
+
+    def set_home_dir(self, home_dir):
+        if home_dir[0] == '/':
+            self.home_dir = home_dir
+        else:
+            self.home_dir = os.path.join(os.getcwd(), home_dir)
+
+    def set_schema_file(self, filename):
+        self.schema_file = os.path.join(self.home_dir, filename)
+
+    def add_object_type(self, obj_type: str):
+        self.object_types.append(obj_type)
+    
+    def set_resolver_module(self, module: str):
+        self.resolver_module = module
+
+    def set_handler_module(self, module: str):
+        self.handler_module = module
+
+
+class GProjectBuilder(object):
+    @staticmethod
+    def build_project(schema_filename: str, yaml_config: dict) -> GProjectConfig:
+        project_conf = GProjectConfig()
+        project_conf.set_home_dir(common.load_config_var(yaml_config['globals']['project_home']))
+        project_conf.set_schema_file(schema_filename)
+        project_conf.set_resolver_module(yaml_config['globals']['resolver_module'])
+        project_conf.set_handler_module(yaml_config['globals']['handler_module'])
+
+        for typespec in load_type_specs(yaml_config):
+            project_conf.add_object_type(typespec.name)
+
+        return project_conf
+
+
+def generate_handler_source(yaml_config: dict) -> str:
+
+    j2env = jinja2.Environment()
+    template_mgr = common.JinjaTemplateManager(j2env)
+    template = j2env.from_string(HANDLER_MODULE_TEMPLATE)
+    
+    qspecs = load_query_specs(yaml_config)
+    return template.render(query_specs=qspecs)
+
+
+def generate_app_source(schema_filename: str, yaml_config: dict) -> str:
+
+    project_conf = GProjectBuilder.build_project(schema_filename, yaml_config)
+
+    j2env = jinja2.Environment()
+    template_mgr = common.JinjaTemplateManager(j2env)
+    template = j2env.from_string(MAIN_APP_TEMPLATE)
+    
+    return template.render(project=project_conf)
+
+
+def generate_resolver_source(yaml_config):
+
+    j2env = jinja2.Environment()
+    template_mgr = common.JinjaTemplateManager(j2env)
+    template = j2env.from_string(RESOLVER_MODULE_TEMPLATE)
+
+    qspecs = load_query_specs(yaml_config)
+    return template.render(query_specs=qspecs)
+
+
 def input_param_to_args(param):
     args = []
     for p_tuple in param.items():
@@ -53,7 +130,6 @@ def input_param_to_args(param):
 
 
 def load_query_specs(yaml_config: dict) -> list:
-
     query_specs = []
     query_segment = yaml_config.get('query_defs')
     for name, query_config  in query_segment.items():
@@ -83,7 +159,7 @@ def load_type_specs(yaml_config: dict) -> list:
                 field_dict[field_name] = f'[{field_value[0]}]'
             else:
                 field_dict[field_name] = field_value
-                
+
         type_specs.append(GQLTypespec(name, field_dict))
 
     return type_specs

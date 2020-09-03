@@ -9,6 +9,8 @@ verify_ssl = true
 flask = "*"
 ariadne = "*"
 snap-micro = "*"
+boto3 = "*"
+aws-google-auth = "*"
 
 [requires]
 python_version = "3.6"
