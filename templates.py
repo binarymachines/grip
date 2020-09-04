@@ -71,6 +71,20 @@ def resolve_{{ query_spec.name }}(obj: Any, info: GraphQLResolveInfo, **kwargs):
 
 """
 
+RESOLVER_FUNCTION_TEMPLATE = """
+@query.field("{{ query_spec.name }}")
+def resolve_{{ query_spec.name }}(obj: Any, info: GraphQLResolveInfo, **kwargs):
+    grip_context = info.context # GRequestContext object
+
+    request = grip_context.request
+    service_registry = grip_context.service_registry
+    forwarder = grip_context.forwarder
+
+    handler_func = forwarder.lookup_query_handler('{{ query_spec.name }}')
+    return handler_func(kwargs, service_registry)
+
+"""
+
 MAIN_APP_TEMPLATE = """
 #!/usr/bin/env python
 

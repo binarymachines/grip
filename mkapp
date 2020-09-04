@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-
 '''
 Usage:
     mkapp --config <configfile> --project-name <name> [--force]
@@ -21,6 +20,7 @@ from griputil import load_query_specs
 from griputil import create_gql_schema
 from griputil import generate_app_source
 from griputil import generate_resolver_source
+from griputil import generate_resolver_function
 from griputil import generate_handler_source
 from griputil import generate_handler_function
 
@@ -30,15 +30,29 @@ from templates import MAIN_APP_TEMPLATE
 
 def write_resolver_module(yaml_config: dict):
     project_home = common.load_config_var(yaml_config['globals']['project_home'])
-    resolver_module = yaml_config['globals']['resolver_module']
-    resolver_filename = f'{resolver_module}.py'
+    resolver_module_name = yaml_config['globals']['resolver_module']
+
+    resolver_module = __import__(resolver_module_name)
+
+    resolver_filename = f'{resolver_module_name}.py'
     resolver_filepath = os.path.join(project_home, resolver_filename)
     
-    if not os.path.isfile(resolver_filepath):
-        if args['--force'] == False:
-            print(f'resolver file {resolver_filepath} already exists. Use -f to force overwrite.')
-            return
-        
+    if os.path.isfile(resolver_filepath):
+        query_specs = load_query_specs(yaml_config)        
+        new_query_specs = []
+
+        for query_spec in query_specs:
+            resolver_funcname = f'resolve_{query_spec.name}'
+
+            if not hasattr(resolver_module, resolver_funcname):
+                new_query_specs.append(query_spec)
+
+        with open(resolver_filepath, 'a') as f:
+            for qspec in new_query_specs:
+                f.write(generate_resolver_function(qspec))
+                f.write('\n')
+
+    else:
         with open(resolver_filepath, 'w') as f:
             f.write(generate_resolver_source(yaml_config))
 
@@ -73,8 +87,7 @@ def write_handler_module(yaml_config: dict):
 
 
 def main(args):
-    #print(common.jsonpretty(args))
-
+    
     configfile_name = args['<configfile>']
     yaml_config = common.read_config_file(configfile_name)
     project_home = common.load_config_var(yaml_config['globals']['project_home'])
@@ -103,14 +116,11 @@ def main(args):
     elif args['--load-schema']:
         schema_infile = os.path.join(project_home,
                                      schema_filename)
-
         with open(schema_infile) as f:
             schema_data = f.read()
 
-
     write_handler_module(yaml_config)
-    write_resolver_module(yaml_config)
-    
+    write_resolver_module(yaml_config)    
     print(generate_app_source(schema_filename, yaml_config))
 
 

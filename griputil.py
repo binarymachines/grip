@@ -13,6 +13,8 @@ from templates import MAIN_APP_TEMPLATE
 from templates import RESOLVER_MODULE_TEMPLATE
 from templates import HANDLER_MODULE_TEMPLATE
 from templates import HANDLER_FUNCTION_TEMPLATE
+from templates import RESOLVER_FUNCTION_TEMPLATE
+
 
 GQLQueryArg = namedtuple('GQLQueryArg', 'name datatype')
 GQLTypespecField = namedtuple('GQLTypespecField', 'name datatype')
@@ -120,7 +122,7 @@ def generate_app_source(schema_filename: str, yaml_config: dict) -> str:
     return template.render(project=project_conf)
 
 
-def generate_resolver_source(yaml_config):
+def generate_resolver_source(yaml_config: dict) -> str:
 
     j2env = jinja2.Environment()
     template_mgr = common.JinjaTemplateManager(j2env)
@@ -128,6 +130,15 @@ def generate_resolver_source(yaml_config):
 
     qspecs = load_query_specs(yaml_config)
     return template.render(query_specs=qspecs)
+
+
+def generate_resolver_function(qspec: GQLQuerySpec) -> str:
+
+    j2env = jinja2.Environment()
+    template_mgr = common.JinjaTemplateManager(j2env)
+    template = j2env.from_string(RESOLVER_FUNCTION_TEMPLATE)
+
+    return template.render(query_spec=qspec)
 
 
 def input_param_to_args(param):
