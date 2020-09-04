@@ -25,8 +25,8 @@ type {{ typespec.name }} {
 
 """
 
-HANLDER_FUNCTION_TEMPLATE = """
-def {{ query_spec }}_func(input_data, service_registry, **kwargs):
+HANDLER_FUNCTION_TEMPLATE = """
+def {{ handler_name }}(input_data, service_registry, **kwargs):
     return None
 """
 

@@ -16,8 +16,60 @@ import docopt
 import yaml
 import jinja2
 from snap import common
-from griputil import create_gql_schema, generate_app_source, generate_resolver_source, generate_handler_source
+
+from griputil import load_query_specs
+from griputil import create_gql_schema
+from griputil import generate_app_source
+from griputil import generate_resolver_source
+from griputil import generate_handler_source
+from griputil import generate_handler_function
+
 from templates import MAIN_APP_TEMPLATE
+
+
+
+def write_resolver_module(yaml_config: dict):
+    project_home = common.load_config_var(yaml_config['globals']['project_home'])
+    resolver_module = yaml_config['globals']['resolver_module']
+    resolver_filename = f'{resolver_module}.py'
+    resolver_filepath = os.path.join(project_home, resolver_filename)
+    
+    if not os.path.isfile(resolver_filepath):
+        if args['--force'] == False:
+            print(f'resolver file {resolver_filepath} already exists. Use -f to force overwrite.')
+            return
+        
+        with open(resolver_filepath, 'w') as f:
+            f.write(generate_resolver_source(yaml_config))
+
+
+def write_handler_module(yaml_config: dict):
+    project_home = common.load_config_var(yaml_config['globals']['project_home'])
+    handler_module_name = yaml_config['globals']['handler_module']
+
+    handler_module = __import__(handler_module_name)
+
+    handler_filename = f'{handler_module_name}.py'
+    handler_filepath = os.path.join(project_home, handler_filename)
+
+    if os.path.isfile(handler_filepath):
+        query_specs = load_query_specs(yaml_config)
+
+        all_handlers = [f'{qspec.name}_func' for qspec in query_specs]
+        new_handlers = []
+
+        for handler_funcname in all_handlers:
+            if not hasattr(handler_module, handler_funcname):
+                new_handlers.append(handler_funcname)
+
+        # update the file
+        with open(handler_filepath, 'a') as f:
+            for new_handler_name in new_handlers:                
+                f.write(generate_handler_function(new_handler_name))
+                f.write('\n')
+    else:
+        with open(handler_filepath, 'w') as f:
+            f.write(generate_handler_source(yaml_config))
 
 
 def main(args):
@@ -55,33 +107,10 @@ def main(args):
         with open(schema_infile) as f:
             schema_data = f.read()
 
-    resolver_module = yaml_config['globals']['resolver_module']
-    handler_module = yaml_config['globals']['handler_module']
-    service_module = yaml_config['globals']['service_module']
+
+    write_handler_module(yaml_config)
+    write_resolver_module(yaml_config)
     
-    resolver_filename = f'{resolver_module}.py'
-    handler_filename = f'{handler_module}.py'
-    service_filename = f'{service_module}.py'
-
-    resolver_filepath = os.path.join(project_home, resolver_filename)
-    handler_filepath = os.path.join(project_home, handler_filename)
-
-    if os.path.isfile(handler_filepath):
-        if args['--force'] == False:
-            print(f'schema file {schema_outfile} already exists. Use -f to force overwrite.')
-            return
-
-        with open(handler_filepath, 'w') as f:
-            f.write(generate_handler_source(yaml_config))
-
-    if not os.path.isfile(resolver_filepath):
-        if args['--force'] == False:
-            print(f'schema file {schema_outfile} already exists. Use -f to force overwrite.')
-            return
-        
-        with open(resolver_filepath, 'w') as f:
-            f.write(generate_resolver_source(yaml_config))
-
     print(generate_app_source(schema_filename, yaml_config))
 
 
