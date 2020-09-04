@@ -8,20 +8,22 @@ import jinja2
 from snap import common
 
 from templates import GQL_QUERY_TEMPLATE
+from templates import GQL_MUTATION_TEMPLATE
 from templates import GQL_TYPE_TEMPLATE
 from templates import MAIN_APP_TEMPLATE
 from templates import RESOLVER_MODULE_TEMPLATE
 from templates import HANDLER_MODULE_TEMPLATE
 from templates import HANDLER_FUNCTION_TEMPLATE
-from templates import RESOLVER_FUNCTION_TEMPLATE
+from templates import QUERY_RESOLVER_FUNCTION_TEMPLATE
+from templates import MUTATION_RESOLVER_FUNCTION_TEMPLATE
 
 
-GQLQueryArg = namedtuple('GQLQueryArg', 'name datatype')
+GQLArg = namedtuple('GQLArg', 'name datatype')
 GQLTypespecField = namedtuple('GQLTypespecField', 'name datatype')
 
 
 class GQLQuerySpec(object):
-    def __init__(self, name: str, return_type: str, *gql_query_args: GQLQueryArg):
+    def __init__(self, name: str, return_type: str, *gql_query_args: GQLArg):
         # TODO: check for trailing '!' in type names
         self.name = name
         self.return_type = return_type
@@ -35,13 +37,25 @@ class GQLQuerySpec(object):
 
     @property
     def arg_string(self):
-        arg_strings = []
-        #for qarg in self.query_args:
-            #arg_strings.append(f'{qarg.name}: {qarg.datatype}')
-        arg_strings = [f'{qarg.name}: {qarg.datatype}' for qarg in self.query_args]
-        
+        arg_strings = [f'{qarg.name}: {qarg.datatype}' for qarg in self.query_args]        
         return ', '.join(arg_strings)
         #return(f'({args})')
+
+
+class GQLMutationSpec(object):
+    def __init__(self, name: str, return_type: str, *gql_mutation_args: GQLArg):
+        self.name = name
+        self.return_type = return_type
+        self.mutation_args = gql_mutation_args
+
+    @property
+    def has_args(self):
+        return len(self.mutation_args) > 0
+
+    @property
+    def arg_string(self):        
+        arg_strings = [f'{arg.name}: {arg.datatype}' for arg in self.mutation_args]        
+        return ', '.join(arg_strings)
 
 
 class GQLTypespec(object):
@@ -129,22 +143,33 @@ def generate_resolver_source(yaml_config: dict) -> str:
     template = j2env.from_string(RESOLVER_MODULE_TEMPLATE)
 
     qspecs = load_query_specs(yaml_config)
-    return template.render(query_specs=qspecs)
+    mspecs = load_mutation_specs(yaml_config)
+
+    return template.render(query_specs=qspecs, mutation_specs=mspecs)
 
 
-def generate_resolver_function(qspec: GQLQuerySpec) -> str:
+def generate_query_resolver_function(qspec: GQLQuerySpec) -> str:
 
     j2env = jinja2.Environment()
     template_mgr = common.JinjaTemplateManager(j2env)
-    template = j2env.from_string(RESOLVER_FUNCTION_TEMPLATE)
+    template = j2env.from_string(QUERY_RESOLVER_FUNCTION_TEMPLATE)
 
     return template.render(query_spec=qspec)
+
+
+def generate_mutation_resolver_function(mspec: GQLMutationSpec) -> str:
+
+    j2env = jinja2.Environment()
+    template_mgr = common.JinjaTemplateManager(j2env)
+    template = j2env.from_string(MUTATION_RESOLVER_FUNCTION_TEMPLATE)
+
+    return template.render(mutation_spec=mspec)
 
 
 def input_param_to_args(param):
     args = []
     for p_tuple in param.items():
-        args.append(GQLQueryArg(name=p_tuple[0], datatype=p_tuple[1]))
+        args.append(GQLArg(name=p_tuple[0], datatype=p_tuple[1]))
 
     return args
 
@@ -165,6 +190,24 @@ def load_query_specs(yaml_config: dict) -> list:
         query_specs.append(GQLQuerySpec(query_name, return_type, *query_args))
     
     return query_specs
+
+
+def load_mutation_specs(yaml_config: dict) -> list:
+    mutation_specs = []
+    mutation_segment = yaml_config.get('mutation_defs')
+    for name, mutation_config in mutation_segment.items():
+        mutation_name = name
+        mutation_args = []
+        input_params = mutation_segment[name].get('inputs')
+
+        if input_params:
+            for ip in input_params:
+                mutation_args.extend(input_param_to_args(ip))
+
+        return_type = mutation_segment[name]['output']
+        mutation_specs.append(GQLMutationSpec(mutation_name, return_type, *mutation_args))
+
+    return mutation_specs
 
 
 def load_type_specs(yaml_config: dict) -> list:
@@ -193,11 +236,11 @@ def create_gql_schema(yaml_config: dict) -> str:
     query_template = j2env.from_string(GQL_QUERY_TEMPLATE)
     query_schema = query_template.render(query_specs=load_query_specs(yaml_config))
 
+    mutation_template = j2env.from_string(GQL_MUTATION_TEMPLATE)
+    mutation_schema = mutation_template.render(mutation_specs=load_mutation_specs(yaml_config))
+
     types_template = j2env.from_string(GQL_TYPE_TEMPLATE)
     types_schema = types_template.render(type_specs=load_type_specs(yaml_config))
 
-    return ''.join([query_schema, types_schema])
+    return ''.join([query_schema, mutation_schema, types_schema])
 
-
-def generate_resolver_src(yaml_config: dict) -> str:
-    pass

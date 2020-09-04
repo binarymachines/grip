@@ -11,7 +11,22 @@ type Query {
     {% endif -%}
     {%- endfor -%}
 }
+
 """
+
+GQL_MUTATION_TEMPLATE = """
+type Mutation {
+    {% for mspec in mutation_specs -%}
+    {% if mspec.has_args -%}
+    {{ mspec.name }}({{ mspec.arg_string }}): {{ mspec.return_type }} 
+    {% else -%}
+    {{ mspec.name }}: {{ mspec.return_type }}
+    {% endif -%} 
+    {%- endfor -%}
+}
+
+"""
+
 
 GQL_TYPE_TEMPLATE = """
 {% for typespec in type_specs %}
@@ -51,9 +66,12 @@ RESOLVER_MODULE_TEMPLATE = """
 from typing import Any
 import json
 from graphql.type import GraphQLResolveInfo
-from ariadne import graphql_sync, make_executable_schema, load_schema_from_path, ObjectType, QueryType
+from ariadne import graphql_sync, make_executable_schema, load_schema_from_path, ObjectType, QueryType, MutationType
 
 query = QueryType()
+mutation = MutationType()
+
+
 
 {% for query_spec in query_specs %}
 @query.field("{{ query_spec.name }}")
@@ -69,9 +87,23 @@ def resolve_{{ query_spec.name }}(obj: Any, info: GraphQLResolveInfo, **kwargs):
 
 {% endfor %}
 
+{%- for mutation_spec in mutation_specs %}
+@mutation.field("{{ mutation_spec.name }}")
+def resolve_{{ mutation_spec.name }}(obj: Any, info: GraphQLResolveInfo, **kwargs):
+    grip_context = info.context # GRequestContext object
+
+    request = grip_context.request
+    service_registry = grip_context.service_registry
+    forwarder = grip_context.forwarder
+
+    handler_func = forwarder.lookup_mutation_handler('{{ mutation_spec.name }}')
+    return handler_func(kwargs, service_registry)
+
+{% endfor %}
+
 """
 
-RESOLVER_FUNCTION_TEMPLATE = """
+QUERY_RESOLVER_FUNCTION_TEMPLATE = """
 @query.field("{{ query_spec.name }}")
 def resolve_{{ query_spec.name }}(obj: Any, info: GraphQLResolveInfo, **kwargs):
     grip_context = info.context # GRequestContext object
@@ -84,6 +116,21 @@ def resolve_{{ query_spec.name }}(obj: Any, info: GraphQLResolveInfo, **kwargs):
     return handler_func(kwargs, service_registry)
 
 """
+
+MUTATION_RESOLVER_FUNCTION_TEMPLATE = """
+@mutation.field("{{ mutaion_spec.name }}")
+def resolve_{{ mutation_spec.name }}(obj: Any, info: GraphQLResolveInfo, **kwargs):
+    grip_context = info.context # GRequestContext object
+
+    request = grip_context.request
+    service_registry = grip_context.service_registry
+    forwarder = grip_context.forwarder
+
+    handler_func = forwarder.lookup_query_handler('{{ mutation_spec.name }}')
+    return handler_func(kwargs, service_registry)
+
+"""
+
 
 MAIN_APP_TEMPLATE = """
 #!/usr/bin/env python
@@ -118,6 +165,7 @@ typedefs = load_schema_from_path('{{ project.schema_file }}')
 
 bindables = []
 bindables.append(r.query)
+bindables.append(r.mutation)
 {% for typename in project.object_types -%}
 bindables.append(ObjectType('{{ typename }}'))
 {% endfor %}

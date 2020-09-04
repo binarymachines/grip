@@ -37,11 +37,16 @@ type_defs:
 
 
 mutation_defs:
+    mutx:
+        inputs:
+        output: String!
 
+    m2:
+        inputs:
+        output: String!
 
 query_defs:
     hello:
-        inputs:
         output: String!
 
     helloperson: 

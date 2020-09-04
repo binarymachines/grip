@@ -6,9 +6,14 @@ import argparse
 from snap import snap, common
 
 
-class UnregisteredHandlerError(Exception):
+class UnregisteredQueryHandler(Exception):
     def __init__(self, query_field):
         super().__init__(f'No handler has been registered for the query field {query_field}')
+
+
+class UnregisteredMutationHandler(Exception):
+    def __init__(self, mutation_field):
+        super().__init__(f'No handler has been registered for the mutation field {mutation_field}')
 
 
 class NoSuchHandlerError(Exception):
@@ -19,17 +24,26 @@ class NoSuchHandlerError(Exception):
 class GRequestForwarder(object):
     def __init__(self):
         self.query_handlers = {}
-
+        self.mutation_handlers = {}
 
     def register_query_handler(self, query_field:str, handler: Callable):
         self.query_handlers[query_field] = handler
 
+    def register_mutation_handler(self, mutation_field:str, handler: Callable):
+        self.mutation_handlers[mutation_field] = handler
 
     def lookup_query_handler(self, query_field: str) -> Callable:
         handler = self.query_handlers.get(query_field)
         if not handler:
-            raise UnregisteredHandlerError(query_field)
+            raise UnregisteredQueryHandler(query_field)
 
+        return handler
+
+    def lookup_mutation_handler(self, mutation_field: str) -> Callable:
+        handler = self.mutation_handlers.get(mutation_field)
+        if not handler:
+            raise UnregisteredMutationHandler(mutation_field)
+    
         return handler
 
 
@@ -54,10 +68,7 @@ def load_grip_config(mode, app):
                             nargs=1,
                             help='YAML config file for grip endpoints')
 
-        
-        args = parser.parse_args()
-        print(args)
-        print(dir(args))
+        args = parser.parse_args()        
         config_file_path = common.full_path(args.config[0])
 
     elif mode == 'server':
@@ -83,10 +94,7 @@ def init_request_forwarder(yaml_config):
     handler_module = __import__(handler_module_name)
 
     for query_name in yaml_config['query_defs']:
-        print(f'## reading query: {query_name}')
-
         handler_funcname = f'{query_name}_func'
-
         if not hasattr(handler_module, handler_funcname):
             raise NoSuchHandlerError(handler_funcname, handler_module_name)
         

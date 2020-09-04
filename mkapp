@@ -17,10 +17,12 @@ import jinja2
 from snap import common
 
 from griputil import load_query_specs
+from griputil import load_mutation_specs
 from griputil import create_gql_schema
 from griputil import generate_app_source
 from griputil import generate_resolver_source
-from griputil import generate_resolver_function
+from griputil import generate_query_resolver_function
+from griputil import generate_mutation_resolver_function
 from griputil import generate_handler_source
 from griputil import generate_handler_function
 
@@ -32,24 +34,37 @@ def write_resolver_module(yaml_config: dict):
     project_home = common.load_config_var(yaml_config['globals']['project_home'])
     resolver_module_name = yaml_config['globals']['resolver_module']
 
-    resolver_module = __import__(resolver_module_name)
-
     resolver_filename = f'{resolver_module_name}.py'
     resolver_filepath = os.path.join(project_home, resolver_filename)
-    
+
     if os.path.isfile(resolver_filepath):
-        query_specs = load_query_specs(yaml_config)        
+
+        resolver_module = __import__(resolver_module_name)
+        query_specs = load_query_specs(yaml_config) 
+        mutation_specs = load_mutation_specs(yaml_config)
+
         new_query_specs = []
+        new_mutation_specs = []
 
         for query_spec in query_specs:
             resolver_funcname = f'resolve_{query_spec.name}'
 
-            if not hasattr(resolver_module, resolver_funcname):
+            if not hasattr(resolver_module, resolver_funcname):                
                 new_query_specs.append(query_spec)
+
+        for mutation_spec in mutation_specs:
+            resolver_funcname = f'resolve_{mutation_spec.name}'
+
+            if not hasattr(resolver_module, resolver_funcname):                
+                new_mutation_specs.append(mutation_spec)
 
         with open(resolver_filepath, 'a') as f:
             for qspec in new_query_specs:
-                f.write(generate_resolver_function(qspec))
+                f.write(generate_query_resolver_function(qspec))
+                f.write('\n')
+
+            for mspec in new_mutation_specs:
+                f.write(generate_mutation_resolver_function(mspec))
                 f.write('\n')
 
     else:
