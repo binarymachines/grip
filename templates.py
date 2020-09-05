@@ -9,12 +9,13 @@ type Query {
     {% else -%}
     {{ qspec.name }}: {{ qspec.return_type }}
     {% endif -%}
-    {%- endfor -%}
+    {%- endfor %}
 }
 
 """
 
 GQL_MUTATION_TEMPLATE = """
+{% if mutation_specs|length -%}
 type Mutation {
     {% for mspec in mutation_specs -%}
     {% if mspec.has_args -%}
@@ -24,13 +25,12 @@ type Mutation {
     {% endif -%} 
     {%- endfor -%}
 }
+{%- endif %}
 
 """
 
-
 GQL_TYPE_TEMPLATE = """
 {% for typespec in type_specs %}
-
 type {{ typespec.name }} {
     {% for field in typespec.fields -%}
     {{ field.name }}: {{ field.datatype }}
@@ -118,7 +118,7 @@ def resolve_{{ query_spec.name }}(obj: Any, info: GraphQLResolveInfo, **kwargs):
 """
 
 MUTATION_RESOLVER_FUNCTION_TEMPLATE = """
-@mutation.field("{{ mutaion_spec.name }}")
+@mutation.field("{{ mutation_spec.name }}")
 def resolve_{{ mutation_spec.name }}(obj: Any, info: GraphQLResolveInfo, **kwargs):
     grip_context = info.context # GRequestContext object
 
@@ -164,11 +164,11 @@ forwarder = app.config.get('forwarder')
 typedefs = load_schema_from_path('{{ project.schema_file }}')
 
 bindables = []
-bindables.append(r.query)
-bindables.append(r.mutation)
-{% for typename in project.object_types -%}
+{% if project.query_specs|length -%}bindables.append(r.query){%- endif %}
+{%+ if project.mutation_specs|length %}bindables.append(r.mutation){% endif %}
+{% for typename in project.object_types %}
 bindables.append(ObjectType('{{ typename }}'))
-{% endfor %}
+{%- endfor %}
 schema = make_executable_schema(typedefs, bindables)
 
 @app.route('/graphql', methods=['GET'])

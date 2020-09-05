@@ -72,6 +72,8 @@ class GProjectConfig(object):
         self.resolver_module = ''
         self.handler_module = ''
         self.object_types = []
+        self.query_specs = []
+        self.mutation_specs = []
 
     def set_home_dir(self, home_dir):
         if home_dir[0] == '/':
@@ -91,6 +93,13 @@ class GProjectConfig(object):
     def set_handler_module(self, module: str):
         self.handler_module = module
 
+    def add_query_spec(self, qspec: GQLQuerySpec):
+        self.query_specs.append(qspec)
+
+    def add_mutation_spec(self, mspec: GQLMutationSpec):
+        self.mutation_specs.append(mspec)
+        
+
 
 class GProjectBuilder(object):
     @staticmethod
@@ -103,6 +112,12 @@ class GProjectBuilder(object):
 
         for typespec in load_type_specs(yaml_config):
             project_conf.add_object_type(typespec.name)
+
+        for qspec in load_query_specs(yaml_config):
+            project_conf.add_query_spec(qspec)
+
+        for mspec in load_mutation_specs(yaml_config):
+            project_conf.add_mutation_spec(mspec)
 
         return project_conf
 
@@ -195,17 +210,18 @@ def load_query_specs(yaml_config: dict) -> list:
 def load_mutation_specs(yaml_config: dict) -> list:
     mutation_specs = []
     mutation_segment = yaml_config.get('mutation_defs')
-    for name, mutation_config in mutation_segment.items():
-        mutation_name = name
-        mutation_args = []
-        input_params = mutation_segment[name].get('inputs')
+    if mutation_segment:
+        for name, mutation_config in mutation_segment.items():
+            mutation_name = name
+            mutation_args = []
+            input_params = mutation_segment[name].get('inputs')
 
-        if input_params:
-            for ip in input_params:
-                mutation_args.extend(input_param_to_args(ip))
+            if input_params:
+                for ip in input_params:
+                    mutation_args.extend(input_param_to_args(ip))
 
-        return_type = mutation_segment[name]['output']
-        mutation_specs.append(GQLMutationSpec(mutation_name, return_type, *mutation_args))
+            return_type = mutation_segment[name]['output']
+            mutation_specs.append(GQLMutationSpec(mutation_name, return_type, *mutation_args))
 
     return mutation_specs
 

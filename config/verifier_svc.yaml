@@ -1,0 +1,74 @@
+# YAML init file for Grip GraphQL framework
+#
+
+globals:
+    project_home: $VFY_HOME
+    service_module: vfy_services
+    resolver_module: vfy_resolvers # Grip will generate this file if it does not exist
+    handler_module: vfy_handlers
+    debug_mode: True
+    port: 5050
+    logfile: grip.log
+    
+
+service_objects:
+    # ensure that on the machine where this runs, 
+    # there is a config file in ~/.aws containing a [finitestate] section
+    secrets:
+        class: SimpleAWSSecretService
+        init_params:
+            - name: aws_region
+              value: us-east-1
+
+            - name: profile
+              value: finitestate
+        
+    athena:
+        class: AWSAthenaQueryService
+        init_params:
+            - name: aws_region
+              value: us-east-1
+
+            - name: aws_profile
+              value: finitestate
+
+            - name: database
+              value: AwsDataCatalog
+
+            - name: s3_bucket
+              value: $ATHENA_DATA_BUCKET  #io.finitestate.codepipeline.dttest
+
+            - name: bucket_path
+              value: /tmp/athena/output
+
+type_defs:
+    Status:
+        ok: Boolean!
+        message: String
+        
+
+mutation_defs:
+  mutx:
+    output: String!
+
+
+query_defs:
+    helloathena:
+        output: String!
+
+    ping:
+        output: Status!
+
+
+entry_point:
+    graphql_get:
+        route: /graphql
+        method: GET
+        handler: handle_get
+
+
+
+
+
+
+
