@@ -22,7 +22,16 @@ service_objects:
 
             - name: profile
               value: finitestate
-        
+    
+    s3:
+      class: S3Service
+      init_params:
+          - name: aws_region
+            value: us-east-1
+
+          - name: profile
+            value: finitestate
+
     athena:
         class: AWSAthenaQueryService
         init_params:
@@ -36,7 +45,8 @@ service_objects:
               value: AwsDataCatalog
 
             - name: s3_bucket
-              value: $ATHENA_DATA_BUCKET  #io.finitestate.codepipeline.dttest
+              value: $ATHENA_DATA_BUCKET  
+              #io.finitestate.codepipeline.dttest
 
             - name: bucket_path
               value: /tmp/athena/output

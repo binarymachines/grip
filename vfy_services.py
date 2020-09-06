@@ -44,10 +44,10 @@ class AWSAthenaQueryService(object):
         self.database = kwargs['database']
         self.region = kwargs['aws_region']
         self.bucket = kwargs['s3_bucket']
-        self.filepath = kwargs['bucket_path']
+        self.filepath = kwargs['bucket_path'].lstrip('/')
+        self.output_path = f'{self.bucket}/{self.filepath}'
 
         profile = kwargs.get('aws_profile')
-
         if profile:
             print('creating boto3 session with profile "%s"...' % profile, file=sys.stderr)
             self.session = boto3.session.Session(profile_name=profile)
@@ -59,19 +59,21 @@ class AWSAthenaQueryService(object):
 
 
     def _athena_query(self, query: str):
-        response = client.start_query_execution(
+        response = self.client.start_query_execution(
             QueryString=query,
             QueryExecutionContext={
                 'Database': self.database
             },
             ResultConfiguration={
-                'OutputLocation': 's3://' + os.path.join(self.bucket, self.filepath)
+                'OutputLocation': 's3://' + self.output_path
             }
         )
+
+        print(f'###____________initial exec response: {response}')
         return response
 
 
-    def athena_to_s3(self, query, max_execution=5):
+    def athena_to_s3(self, query, max_execution=7):
         
         execution = self._athena_query(query)
         execution_id = execution['QueryExecutionId']
@@ -95,8 +97,10 @@ class AWSAthenaQueryService(object):
                     print('### Athena query succeeded.')
                     s3_path = response['QueryExecution']['ResultConfiguration']['OutputLocation']
                     filename = re.findall('.*\/(.*)', s3_path)[0]
-                    return filename
-            time.sleep(1)
+
+                    s3_result_path = self.output_path.rstrip('/') + '/' + filename 
+                    return s3_result_path
+            time.sleep(2)
         
         return False
 
@@ -137,3 +141,32 @@ class PostgresPsycopgService(object):
         finally:
             if connection is not None:
                 connection.close()
+
+
+class S3Service(object):
+    def __init__(self, **kwargs):
+                
+        self.region = kwargs['aws_region']
+        self.s3session = None
+        
+        profile = kwargs.get('aws_profile')
+        if profile:
+            print('creating boto3 session with profile "%s"...' % profile, file=sys.stderr)
+            self.session = boto3.session.Session(profile_name=profile)
+        else:
+            # for example, if we get access via AssumeRole
+            self.session = boto3.session.Session()
+
+        self.s3client = boto3.client('s3', region_name=self.region)
+ 
+
+    def download_data(self, s3path):
+
+        separator_index = s3path.find('/')
+        bucket_name = s3path[0:separator_index]
+        object_key = s3path[separator_index:].strip('/')
+
+        print(f'###__________Calling get_object() with bucket: {bucket_name} and key: {object_key}')
+
+        obj = self.s3client.get_object(Bucket=bucket_name, Key=object_key)
+        return obj['Body'].read().decode('utf-8')
