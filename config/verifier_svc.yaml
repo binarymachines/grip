@@ -32,6 +32,18 @@ service_objects:
           - name: profile
             value: finitestate
 
+    postgres:
+        class: PostgreSQLService
+        init_params:
+          - name: init_secret
+            value: knowledgebase/stage/system_rw_static_creds
+
+          - name: aws_region
+            value: us-east-1
+
+          - name: profile
+            value: finitestate
+
     athena:
         class: AWSAthenaQueryService
         init_params:
@@ -52,9 +64,15 @@ service_objects:
               value: /tmp/athena/output
 
 type_defs:
+    Error:
+        error_type: String!
+        error_key: String!
+        error_value: String! 
+
     Status:
         ok: Boolean!
-        message: String
+        input_query: String!
+        errors: '[Error]'
         
 
 mutation_defs:
@@ -64,10 +82,14 @@ mutation_defs:
 
 query_defs:
     helloathena:
-        output: String!
+        inputs:
+          - observation_def_id: String!
+          - input_query: String!
+
+        output: Status!
 
     ping:
-        output: Status!
+        output: String!
 
 
 entry_point:

@@ -12,6 +12,8 @@ snap-micro = "*"
 boto3 = "*"
 aws-google-auth = "*"
 psycopg2-binary = "*"
+sqlalchemy = "*"
+sqlalchemy-utils = "*"
 
 [requires]
 python_version = "3.6"

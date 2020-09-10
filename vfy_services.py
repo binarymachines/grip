@@ -4,8 +4,20 @@ import os, sys
 import re
 import json
 import logging
+
 from contextlib import contextmanager
 import time
+
+from snap import common
+import sqlalchemy as sqla
+from sqlalchemy.ext.automap import automap_base
+from sqlalchemy import Column, ForeignKey, Integer, String
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import relationship
+from sqlalchemy.orm.session import sessionmaker
+from sqlalchemy import create_engine
+from sqlalchemy import MetaData
+from sqlalchemy_utils import UUIDType
 import boto3
 import psycopg2
 
@@ -141,6 +153,107 @@ class PostgresPsycopgService(object):
         finally:
             if connection is not None:
                 connection.close()
+
+
+POSTGRESQL_SVC_PARAM_NAMES = [
+    'host',
+    'port',
+    'dbname',
+    'username',
+    'password'
+]
+
+class PostgreSQLService(object):
+    def __init__(self, **kwargs):
+        #kwreader = common.KeywordArgReader(*POSTGRESQL_SVC_PARAM_NAMES)
+        #kwreader.read(**kwargs)
+
+        init_params = { 'db_type': 'postgresql+psycopg2' }
+        
+
+        if kwargs.get('init_secret'):
+
+            # for staging, the secret_name is knowledgebase/stage/system_rw_static_creds
+            #
+            if kwargs.get('profile'):
+                secret_mgr = SimpleAWSSecretService(aws_region='us-east-1', profile=kwargs['profile'])
+                secret_name = kwargs['init_secret']
+            
+            else:
+                secret_mgr = SimpleAWSSecretService(aws_region='us-east-1')
+                secret_name = kwargs['init_secret']
+            
+            credentials = secret_mgr.get_secret(secret_name)            
+            init_params['user'] = credentials.pop('username')            
+            init_params.update(credentials)
+
+        else:
+            init_params['dbname'] = kwargs['dbname']
+            init_params['host'] = kwargs['host']
+            init_params['port'] = int(kwargs.get('port', 5432))
+            init_params['user'] = kwargs['username']
+            init_params['password'] = kwargs['password']        
+
+        self.schema = kwargs.get('schema', 'public')
+        self.metadata = None
+        self.engine = None
+        self.session_factory = None
+        self.Base = None
+        self.url = None
+
+        url_template = '{db_type}://{user}:{password}@{host}:{port}/{dbname}'
+        db_url = url_template.format(**init_params)
+        
+        retries = 0
+        connected = False
+        while not connected and retries < 3:
+            try:
+                self.engine = sqla.create_engine(db_url, echo=False)
+                self.metadata = MetaData(schema=self.schema)
+                self.Base = automap_base(bind=self.engine, metadata=self.metadata)
+                self.Base.prepare(self.engine, reflect=True)
+                self.metadata.reflect(bind=self.engine)
+                self.session_factory = sessionmaker(bind=self.engine, autoflush=False, autocommit=False)
+
+                # this is required. See comment in SimpleRedshiftService 
+                connection = self.engine.connect()                
+                connection.close()
+                connected = True
+                print('### Connected to PostgreSQL DB.', file=sys.stderr)
+                self.url = db_url
+
+            except Exception as err:
+                print(err, file=sys.stderr)
+                print(err.__class__.__name__, file=sys.stderr)
+                print(err.__dict__, file=sys.stderr)
+                time.sleep(1)
+                retries += 1
+            
+        if not connected:
+            raise Exception('!!! Unable to connect to PostgreSQL db on host %s at port %s.' % 
+                            (self.host, self.port))
+
+    @contextmanager
+    def txn_scope(self):
+        session = self.session_factory()
+        try:
+            yield session
+            session.commit()
+        except:
+            session.rollback()
+            raise
+        finally:
+            session.close()
+
+
+    @contextmanager    
+    def connect(self):
+        connection = self.engine.connect()
+        try:
+            yield connection
+        finally:
+            connection.close()
+
 
 
 class S3Service(object):
